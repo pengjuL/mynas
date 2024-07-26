@@ -1,0 +1,9 @@
+spring:
+  custom:
+    env:
+#      baseUrl: "http://www.withyoudaily365.com/images"
+      baseUrl: "localhost/test"
+      basePath: "E:/myNas/"
+#      basePath: "/usr/share/nginx/html/images"
+    paramRule:
+      accountLimit: 12
