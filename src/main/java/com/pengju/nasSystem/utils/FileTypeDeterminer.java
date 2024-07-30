@@ -21,6 +21,9 @@ public class FileTypeDeterminer {
         mineTypeMap.put("docx","word");
         mineTypeMap.put("rar","zip");
         mineTypeMap.put("zip","zip");
+        mineTypeMap.put("pdf","pdf");
+        mineTypeMap.put("xls","xls");
+        mineTypeMap.put("xlsx","xlsx");
 
     }
 
@@ -30,22 +33,20 @@ public class FileTypeDeterminer {
             if (file.isDirectory()){
                 return "folder";
             }
-            String fileName = file.getName();
-            int dotIndex = fileName.lastIndexOf('.');
-            if (dotIndex > 0 && dotIndex < fileName.length()-1){
-                String extension = fileName.substring(dotIndex+1).toLowerCase();
-                return mineTypeMap.get(extension);
-            }
+            String filename = file.getName();
+            getFileType(filename);
         }
         return "unknown";
     }
+
     public static String getFileType(String fileName){
 
         int dotIndex = fileName.lastIndexOf('.');
+        String fileType = "unknown";
         if (dotIndex > 0 && dotIndex < fileName.length()-1){
             String extension = fileName.substring(dotIndex+1).toLowerCase();
-            return mineTypeMap.get(extension);
+            fileType = mineTypeMap.get(extension);
         }
-        return "unknown";
+        return fileType == null ? "unknown" : fileType;
     }
 }

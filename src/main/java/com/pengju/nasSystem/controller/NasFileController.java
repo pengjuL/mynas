@@ -84,6 +84,12 @@ public class NasFileController {
 
         List<NasFile> nasFileList = nasFileService.list(queryWrapper);
         nasFileList.forEach(nasFile -> {
+            // 对数据库中的文件类型做更新，排除文件夹
+            if (!"folder".equals(nasFile.getFileType()) &&
+                    !FileTypeDeterminer.getFileType(nasFile.getFilename()).equals(nasFile.getFileType())){
+                nasFile.setFileType(FileTypeDeterminer.getFileType(nasFile.getFilename()));
+                nasFileService.updateById(nasFile);
+            }
             nasFile.setStorageName("****");
             nasFile.setUserId("****");
         });
@@ -95,7 +101,7 @@ public class NasFileController {
     }
 
     @PostMapping("/add")
-    public HashMap<String,Object> add(@RequestParam("file") MultipartFile file,
+    public HashMap<String,Object> add(@RequestParam("file") Object file,
                                       @RequestParam("fileType") String fileType,
                                       @RequestParam("path") String path,
                                       @RequestParam("userId") String userId){
@@ -110,18 +116,19 @@ public class NasFileController {
         result.put("result",false);
 //      准备一个路径
         String truthPath = customConf.getEnv().getBasePath() + userId + path;
-        String fileName = file.getOriginalFilename();
+
 //        是否为一个文件夹，是：在对应路径新建文件夹
         if ("folder".equals(fileType)){
+            String filename = (String)file;
 //            新增文件夹逻辑
-            File newFile = new File(truthPath + fileName);
+            File newFile = new File(truthPath + filename);
             if (!newFile.exists()){
                 if (newFile.mkdirs()){
                     result.put("result",true);
                     NasFile nasFile = new NasFile();
-                    nasFile.setFilename(fileName);
+                    nasFile.setFilename(filename);
                     nasFile.setFileType("folder");
-                    nasFile.setStorageName(fileName);
+                    nasFile.setStorageName(filename);
                     nasFile.setPath(path);
                     nasFile.setUserId(userId);
                     nasFile.setSize(0L);
@@ -140,7 +147,9 @@ public class NasFileController {
              * 1、用户空间检查
              * 2、文件新增
              */
-            long fileSize = file.getSize()/1024;
+            MultipartFile multipartFile = (MultipartFile) file;
+            String fileName = multipartFile.getOriginalFilename();
+            long fileSize = multipartFile.getSize()/1024;
 //            检查用户是否还有空间
             User user = userService.getById(userId);
             if (user.getMaxVolume() - user.getVolume() < fileSize){
@@ -149,9 +158,10 @@ public class NasFileController {
 
             }
             else {
+                assert fileName != null;
                 String storageName = UUID.randomUUID()+fileName.substring(fileName.indexOf("."));
                 try {
-                    file.transferTo(new File(truthPath + storageName));
+                    multipartFile.transferTo(new File(truthPath + storageName));
                     user.setVolume(user.getVolume()+fileSize);
                     userService.updateById(user);
                     NasFile nasFile = new NasFile();
@@ -201,5 +211,33 @@ public class NasFileController {
         } catch (Exception e) {
             return ResponseEntity.status(500).build();
         }
+    }
+
+    @PostMapping("/delete")
+    public HashMap<String,Object> deleteFile(@RequestBody HashMap<String,Object> req){
+
+        HashMap<String,Object> resultMap = new HashMap<>(2);
+        boolean result = true;
+        String mes = "";
+        String fileId = (String) req.get("fileId");
+        NasFile nasFile = nasFileService.getById(fileId);
+//        逻辑删除
+        if (!nasFileService.removeById(fileId)){
+            result = false;
+            mes = "|逻辑删除失败|";
+        }
+//        物理删除
+        String filepath = customConf.getEnv().getBasePath() + nasFile.getUserId() + nasFile.getPath()
+                + nasFile.getStorageName();
+        File delFile = new File(filepath);
+        if (delFile.exists()){
+            if (!delFile.delete()) {
+                result = false;
+                mes = mes+"|物理删除失败|";
+            }
+        }
+        resultMap.put("result",result);
+        resultMap.put("mes", mes);
+        return resultMap;
     }
 }
